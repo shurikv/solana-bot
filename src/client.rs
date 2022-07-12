@@ -14,6 +14,14 @@ impl Client {
         self.client = Some(RpcClient::new(&self.node.rpc));
     }
 
+    pub fn get_version(&self) -> String {
+        if let Some(client) = &self.client {
+            let version = client.get_version().unwrap();
+            return version.solana_core;
+        }
+        "".to_string()
+    }
+
     fn get_balance(&self, key: &str) -> f64 {
         let pubkey = Pubkey::from_str(key);
         match pubkey {

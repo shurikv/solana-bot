@@ -12,6 +12,7 @@ pub struct Settings {
 pub struct Telegram {
     pub token: String,
     pub chat_id: i64,
+    pub alert_chat_id: i64
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
