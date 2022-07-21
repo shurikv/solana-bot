@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::time::Duration;
 
 use serde_json::{json, Map, Value};
@@ -12,7 +13,10 @@ mod settings;
 mod client;
 
 pub fn read_setting_from_file() -> Settings {
-    let json_from_file = std::fs::read_to_string("settings.json").unwrap();
+    let mut path_buf = std::env::current_exe().unwrap();
+    path_buf.pop();
+    path_buf.push("settings.json");
+    let json_from_file = std::fs::read_to_string(path_buf.to_str().unwrap()).expect(format!("File not found: {:?}", path_buf.to_str()).as_str());
     let settings: Settings = serde_json::from_str(json_from_file.as_str()).unwrap();
     settings
 }
