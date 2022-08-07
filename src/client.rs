@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
 
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::{RpcBlockProductionConfig, RpcGetVoteAccountsConfig, RpcLeaderScheduleConfig};
-use solana_client::rpc_response::{RpcContactInfo, RpcLeaderSchedule};
+use solana_client::rpc_response::{RpcContactInfo, RpcLeaderSchedule, RpcVoteAccountInfo};
 use solana_sdk::native_token::lamports_to_sol;
 use solana_sdk::pubkey::Pubkey;
 
@@ -67,6 +68,89 @@ impl Client {
             };
         }
         Some(false)
+    }
+
+    pub fn get_stake_weighted_skip_rate(&self) -> (f64, f64) {
+        if let Some(client) = &self.client {
+            let result = client.get_vote_accounts();
+            let vote_accounts = result.unwrap();
+
+            let skip_rate: HashMap<_, _> = client
+                .get_block_production()
+                .ok()
+                .map(|result| {
+                    result
+                        .value
+                        .by_identity
+                        .into_iter()
+                        .map(|(identity, (leader_slots, blocks_produced))| {
+                            (
+                                identity,
+                                100. * (leader_slots.saturating_sub(blocks_produced)) as f64
+                                    / leader_slots as f64,
+                            )
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            let current_validators: Vec<(u64, Option<f64>)> = vote_accounts
+                .current
+                .iter()
+                .map(|vote_account| {
+                    (vote_account.activated_stake,
+                     skip_rate.get(&vote_account.node_pubkey).cloned()
+                    )
+                })
+                .collect();
+
+            let delinquent_validators: Vec<(u64, Option<f64>)> = vote_accounts
+                .delinquent
+                .iter()
+                .map(|vote_account| {
+                    (
+                        vote_account.activated_stake,
+                        skip_rate.get(&vote_account.node_pubkey).cloned()
+                    )
+                })
+                .collect();
+
+            let validators: Vec<_> = current_validators
+                .into_iter()
+                .chain(delinquent_validators.into_iter())
+                .collect();
+
+            let total_active_stake: u64 = vote_accounts
+                .current
+                .iter()
+                .chain(vote_accounts.delinquent.iter())
+                .map(|vote_account| vote_account.activated_stake)
+                .sum();
+
+            let (average_skip_rate, average_stake_weighted_skip_rate) = {
+                let mut skip_rate_len = 0;
+                let mut skip_rate_sum = 0.;
+                let mut skip_rate_weighted_sum = 0.;
+                for validator in validators.iter() {
+                    if let Some(skip_rate) = validator.1 {
+                        skip_rate_sum += skip_rate;
+                        skip_rate_len += 1;
+                        skip_rate_weighted_sum += skip_rate * validator.0 as f64;
+                    }
+                }
+
+                if skip_rate_len > 0 && total_active_stake > 0 {
+                    (
+                        skip_rate_sum / skip_rate_len as f64,
+                        skip_rate_weighted_sum / total_active_stake as f64,
+                    )
+                } else {
+                    (100., 100.) // Impossible?
+                }
+            };
+            return (average_skip_rate, average_stake_weighted_skip_rate);
+        }
+        (100., 100.) // Impossible?
     }
 
     pub fn get_block_production(&self) -> (usize, usize) {

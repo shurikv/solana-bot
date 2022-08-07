@@ -42,7 +42,7 @@ fn main() {
         msg.push_str(format!("{:-<35}\n", "").as_str());
         let blocks = client.get_block_production();
         let progress = client.get_slot_count().to_string() + "/" + blocks.0.to_string().as_str();
-        msg.push_str(format!("{:^10}|{:^6}|{:^7.2}|{:^9.2}\n", progress, blocks.0 - blocks.1, client.get_skip_rate(), client.get_cluster_skip()).as_str());
+        msg.push_str(format!("{:^10}|{:^6}|{:^7.2}|{:^9.2}\n", progress, blocks.0 - blocks.1, client.get_skip_rate(), client.get_stake_weighted_skip_rate().1).as_str());
         msg.push_str(format!("{:-<35}\n", "").as_str());
         let epoch_info = client.get_epoch_info();
         msg.push_str(format!("epoch:{:^4}|{:^25}\n", epoch_info.0, epoch_info.1).as_str());
