@@ -70,6 +70,27 @@ impl Client {
         Some(false)
     }
 
+    pub fn get_credits_and_place(&self) -> (usize, u64) {
+        if let Some(client) = &self.client {
+            let result = client.get_vote_accounts();
+            let vote_accounts = result.unwrap();
+            let mut current: Vec<(String, u64)> = vote_accounts
+                .current
+                .iter()
+                .map(|vote_account| {
+                    let current_epoch_credits = vote_account.epoch_credits.last().unwrap();
+                    let current_credits = current_epoch_credits.1 - current_epoch_credits.2;
+                    (vote_account.node_pubkey.clone(), current_credits)
+                })
+                .collect();
+            current.sort_by(|a, b| b.1.cmp(&a.1));
+            let position = current.iter().position(|c| c.0 == self.node.identity).unwrap();
+            let my_credits = current.get(position as usize).unwrap();
+            return (position + 1, my_credits.1);
+        }
+        (0, 0)
+    }
+
     pub fn get_stake_weighted_skip_rate(&self) -> (f64, f64) {
         if let Some(client) = &self.client {
             let result = client.get_vote_accounts();

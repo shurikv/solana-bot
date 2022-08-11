@@ -37,6 +37,9 @@ fn main() {
         msg.push_str(format!("{:-<35}\n", "").as_str());
         msg.push_str(format!("{:<16} | {:<16}\n", &client.node.identity[..16].to_string(), &client.node.vote[..16].to_string()).as_str());
         msg.push_str(format!("{:^16.*} | {:^16.*}\n", 2, client.get_identity_balance(), 2, client.get_vote_balance()).as_str());
+        let credits_data = client.get_credits_and_place();
+        msg.push_str(format!("{:-<35}\n", "").as_str());
+        msg.push_str(format!(" place: {:^8.*} | credits: {:^7.*}\n", 0, credits_data.0, 0, credits_data.1).as_str());
         msg.push_str(format!("{:-<35}\n", "").as_str());
         msg.push_str(format!("{}", " progress | skip | skip% | cluster%\n").as_str());
         msg.push_str(format!("{:-<35}\n", "").as_str());
