@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::{RpcBlockProductionConfig, RpcGetVoteAccountsConfig, RpcLeaderScheduleConfig};
-use solana_client::rpc_response::{RpcContactInfo, RpcLeaderSchedule, RpcVoteAccountInfo};
+use solana_client::rpc_response::{RpcContactInfo};
 use solana_sdk::native_token::lamports_to_sol;
 use solana_sdk::pubkey::Pubkey;
 
@@ -84,9 +84,16 @@ impl Client {
                 })
                 .collect();
             current.sort_by(|a, b| b.1.cmp(&a.1));
-            let position = current.iter().position(|c| c.0 == self.node.identity).unwrap();
-            let my_credits = current.get(position as usize).unwrap();
-            return (position + 1, my_credits.1);
+            let position_option_value = current.iter().position(|c| c.0 == self.node.identity);
+            return match position_option_value {
+                None => {
+                    (0, 0)
+                }
+                Some(value) => {
+                    let my_credits = current.get(value as usize).unwrap();
+                    (value as usize + 1, my_credits.1)
+                }
+            }
         }
         (0, 0)
     }
@@ -196,21 +203,6 @@ impl Client {
     pub fn get_skip_rate(&self) -> f64 {
         let val = self.get_block_production();
         (val.0 - val.1) as f64 * 100. / val.0 as f64
-    }
-
-    pub fn get_cluster_skip(&self) -> f64 {
-        if let Some(client) = &self.client {
-            let result = client.get_block_production();
-            return match result {
-                Ok(skip) => {
-                    skip.value.by_identity.values().fold(0., |x, y| x + (y.0 - y.1) as f64 * 100. / y.0 as f64) / skip.value.by_identity.len() as f64
-                }
-                Err(_) => {
-                    0.
-                }
-            };
-        }
-        0.
     }
 
     pub fn get_slot_count(&self) -> usize {

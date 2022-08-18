@@ -1,8 +1,4 @@
-use std::path::Path;
-use std::time::Duration;
-
 use serde_json::{json, Map, Value};
-use solana_client::rpc_client::RpcClient;
 use ureq;
 use ureq::{Error, Response};
 
@@ -63,13 +59,11 @@ fn main() {
             Ok(_) => { println!("Ok"); }
             Err(e) => { println!("Error: {}", e); }
         }
-        if let delinquent = client.is_delinquent() {
-            match delinquent {
-                None => {}
-                Some(value) => {
-                    if value {
-                        send_message(format!("{} is delinquent!!!", client.node.name.as_str()), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
-                    }
+        match client.is_delinquent() {
+            None => {}
+            Some(value) => {
+                if value {
+                    send_message(format!("{} is delinquent!!!", client.node.name.as_str()), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
                 }
             }
         }
