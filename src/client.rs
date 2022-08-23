@@ -189,8 +189,12 @@ impl Client {
             });
             return match block {
                 Ok(bl) => {
-                    let val = bl.value.by_identity.get(self.node.identity.as_str()).unwrap();
-                    (val.0, val.1)
+                    let val = bl.value.by_identity.get(self.node.identity.as_str());
+                    if let Some(v) = val {
+                        (v.0, v.1)
+                    } else {
+                        (0, 0)
+                    }
                 }
                 Err(_) => {
                     (0, 0)
