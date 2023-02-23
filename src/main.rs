@@ -39,7 +39,8 @@ fn main() {
         msg.push_str(format!("{:^16} | {:^16}\n", "identity", "vote").as_str());
         msg.push_str(format!("{:-<35}\n", "").as_str());
         msg.push_str(format!("{:<16} | {:<16}\n", &client.node.identity[..16].to_string(), &client.node.vote[..16].to_string()).as_str());
-        msg.push_str(format!("{:^16.*} | {:^16.*}\n", 2, client.get_identity_balance(), 2, client.get_vote_balance()).as_str());
+        let identity_balance = client.get_identity_balance();
+        msg.push_str(format!("{:^16.*} | {:^16.*}\n", 2, identity_balance, 2, client.get_vote_balance()).as_str());
         let credits_data = client.get_credits_and_place();
         msg.push_str(format!("{:-<35}\n", "").as_str());
         msg.push_str(format!(" place: {:^8.*} | credits: {:^7.*}\n", 0, credits_data.0, 0, credits_data.1).as_str());
@@ -63,9 +64,12 @@ fn main() {
             None => {}
             Some(value) => {
                 if value {
-                    send_message(format!("{} is delinquent!!!", client.node.name.as_str()), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
+                    send_message(format!("<b>{}</b>\npubkey -> {}\n<b>DELINQUENT!!!</b>!!!", client.node.name.as_str(), &client.node.identity[..16]), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
                 }
             }
+        }
+        if identity_balance < client.node.min_alert_amount {
+            send_message(format!("<b>{}</b>\npubkey -> {}\n<b>SMALL AMOUNT => {}!!!</b>!!!", client.node.name.as_str(), &client.node.identity[..16], identity_balance), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
         }
     }
 }
