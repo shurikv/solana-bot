@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::{RpcBlockProductionConfig, RpcGetVoteAccountsConfig, RpcLeaderScheduleConfig};
-use solana_client::rpc_response::{RpcContactInfo};
+use solana_client::rpc_response::RpcContactInfo;
 use solana_sdk::native_token::lamports_to_sol;
 use solana_sdk::pubkey::Pubkey;
 
@@ -93,7 +93,7 @@ impl Client {
                     let my_credits = current.get(value as usize).unwrap();
                     (value as usize + 1, my_credits.1)
                 }
-            }
+            };
         }
         (0, 0)
     }
@@ -224,7 +224,7 @@ impl Client {
         0
     }
 
-    pub fn get_epoch_info(&self) -> (String, String) {
+    pub fn get_epoch_info(&self) -> (String, String, f32) {
         if let Some(client) = &self.client {
             let epoch_info = client.get_epoch_info();
             return match epoch_info {
@@ -238,15 +238,93 @@ impl Client {
                             });
                             (secs as u64).saturating_mul(1000).checked_div(slots)
                         });
-                    (epoch_num, humantime::format_duration(Duration::from_secs(remaining_slots * average_time_in_ms.unwrap()) / 1000).to_string())
+                    (epoch_num, humantime::format_duration(Duration::from_secs(remaining_slots * average_time_in_ms.unwrap()) / 1000).to_string(), remaining_slots as f32 / value.slots_in_epoch as f32)
                 }
                 Err(_) => {
-                    (String::from(""), String::from(""))
+                    (String::from(""), String::from(""), 0.)
                 }
             };
         }
-        (String::from(""), String::from(""))
+        (String::from(""), String::from(""), 0.)
     }
+/*
+    pub fn get_stakes(&self) -> f64 {
+        use crate::stake::build_stake_state;
+
+        let mut program_accounts_config = RpcProgramAccountsConfig {
+            account_config: RpcAccountInfoConfig {
+                encoding: Some(solana_account_decoder::UiAccountEncoding::Base64),
+                ..RpcAccountInfoConfig::default()
+            },
+            ..RpcProgramAccountsConfig::default()
+        };
+        program_accounts_config.filters = Some(vec![
+            // Filter by `StakeState::Stake(_, _)`
+            rpc_filter::RpcFilterType::Memcmp(rpc_filter::Memcmp::new_base58_encoded(
+                0,
+                &[2, 0, 0, 0],
+            )),
+            // Filter by `Delegation::voter_pubkey`, which begins at byte offset 124
+            rpc_filter::RpcFilterType::Memcmp(rpc_filter::Memcmp::new_base58_encoded(
+                124,
+                Pubkey::from_str(self.node.vote.as_str()).unwrap().as_ref(),
+            )),
+        ]);
+        let all_stake_accounts = rpc_client
+            .get_program_accounts_with_config(&stake::program::id(), program_accounts_config)?;
+        let stake_history_account = rpc_client.get_account(&stake_history::id())?;
+        let clock_account = rpc_client.get_account(&sysvar::clock::id())?;
+        let clock: Clock = from_account(&clock_account).ok_or_else(|| {
+            CliError::RpcRequestError("Failed to deserialize clock sysvar".to_string())
+        })?;
+
+        let mut stake_accounts: Vec<CliKeyedStakeState> = vec![];
+        for (stake_pubkey, stake_account) in all_stake_accounts {
+            if let Ok(stake_state) = stake_account.state() {
+                match stake_state {
+                    StakeState::Initialized(_) => {
+                        if vote_account_pubkeys.is_none() {
+                            stake_accounts.push(CliKeyedStakeState {
+                                stake_pubkey: stake_pubkey.to_string(),
+                                stake_state: build_stake_state(
+                                    stake_account.lamports,
+                                    &stake_state,
+                                    true,
+                                    &stake_history,
+                                    &clock,
+                                ),
+                            });
+                        }
+                    }
+                    StakeState::Stake(_, stake) => {
+                        if vote_account_pubkeys.is_none()
+                            || vote_account_pubkeys
+                            .unwrap()
+                            .contains(&stake.delegation.voter_pubkey)
+                        {
+                            stake_accounts.push(CliKeyedStakeState {
+                                stake_pubkey: stake_pubkey.to_string(),
+                                stake_state: build_stake_state(
+                                    stake_account.lamports,
+                                    &stake_state,
+                                    true,
+                                    &stake_history,
+                                    &clock,
+                                ),
+                            });
+                            println!("{},{},{}", stake_pubkey, stake_state, stake_account.lamports);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+       /* for (val) in stake_accounts {
+            val
+        }*/
+        return 0.;
+    }
+    */
 }
 
 fn get_contact_info(rpc_client: &RpcClient, identity: &Pubkey) -> Option<RpcContactInfo> {

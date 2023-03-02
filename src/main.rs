@@ -28,9 +28,11 @@ fn main() {
 
         let skip_rate = client.get_skip_rate();
         let cluster_skip_rate = client.get_stake_weighted_skip_rate().1;
+        let epoch_info = client.get_epoch_info();
         let mut msg: String;
-        if skip_rate >= cluster_skip_rate + client.node.critical_excess_of_skip_rate {
+        if skip_rate >= cluster_skip_rate + client.node.critical_excess_of_skip_rate && epoch_info.2 > 0.5 {
             msg = format!("<b>{} [{}]</b> 🔴", client.node.name, client.get_version());
+            send_message(format!("<b>{}</b>\npubkey -> {}\n<b>CRITICAL_SKIP_RATE => {}!!!</b>!!!", client.node.name.as_str(), &client.node.identity[..16], skip_rate), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
         } else {
             msg = format!("<b>{} [{}]</b> 🟢", client.node.name, client.get_version());
         }
@@ -51,7 +53,6 @@ fn main() {
         let progress = client.get_slot_count().to_string() + "/" + blocks.0.to_string().as_str();
         msg.push_str(format!("{:^10}|{:^6}|{:^7.2}|{:^9.2}\n", progress, blocks.0 - blocks.1, skip_rate, cluster_skip_rate).as_str());
         msg.push_str(format!("{:-<35}\n", "").as_str());
-        let epoch_info = client.get_epoch_info();
         msg.push_str(format!("epoch:{:^4}|{:^25}\n", epoch_info.0, epoch_info.1).as_str());
         msg.push_str(format!("{:-<35}\n", "").as_str());
         msg.push_str("</code>");
