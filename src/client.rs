@@ -217,7 +217,14 @@ impl Client {
             });
             let result = match leader.unwrap() {
                 None => { 0 }
-                Some(slots) => { slots.get(self.node.identity.as_str()).unwrap().len() }
+                Some(slots) => {
+                    if let Some(slots_vec) = slots.get(self.node.identity.as_str()) {
+                        slots_vec.len()
+                    }
+                    else {
+                        0
+                    }
+                }
             };
             return result;
         }
