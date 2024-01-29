@@ -3,26 +3,35 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use solana_client::rpc_client::RpcClient;
-use solana_client::rpc_config::{RpcBlockProductionConfig, RpcGetVoteAccountsConfig, RpcLeaderScheduleConfig};
+use solana_client::rpc_config::{
+    RpcBlockProductionConfig, RpcGetVoteAccountsConfig, RpcLeaderScheduleConfig,
+};
 use solana_client::rpc_response::RpcContactInfo;
 use solana_sdk::native_token::lamports_to_sol;
 use solana_sdk::pubkey::Pubkey;
 
-use crate::settings::Node;
+use crate::settings::Validator;
 
 pub struct Client {
-    pub node: Node,
+    pub validator: Validator,
     pub client: Option<RpcClient>,
 }
 
 impl Client {
+    pub fn new(validator: &Validator) -> Self {
+        Self {
+            validator: validator.to_owned(),
+            client: Some(RpcClient::new(validator.to_owned().rpc)),
+        }
+    }
+
     pub fn initialize(&mut self) {
-        self.client = Some(RpcClient::new(&self.node.rpc));
+        self.client = Some(RpcClient::new(&self.validator.rpc));
     }
 
     pub fn get_version(&self) -> String {
         if let Some(client) = &self.client {
-            let pubkey = Pubkey::from_str(&self.node.identity);
+            let pubkey = Pubkey::from_str(&self.validator.identity);
             if let Some(info) = get_contact_info(&client, &pubkey.unwrap()) {
                 return info.version.unwrap_or_else(|| "?".to_string());
             }
@@ -40,31 +49,27 @@ impl Client {
                 }
                 -1.
             }
-            Err(_) => -1.
+            Err(_) => -1.,
         }
     }
 
     pub fn get_identity_balance(&self) -> f64 {
-        self.get_balance(self.node.identity.as_str())
+        self.get_balance(self.validator.identity.as_str())
     }
 
     pub fn get_vote_balance(&self) -> f64 {
-        self.get_balance(self.node.vote.as_str())
+        self.get_balance(self.validator.vote.as_str())
     }
 
     pub fn is_delinquent(&self) -> Option<bool> {
         if let Some(client) = &self.client {
             let result = client.get_vote_accounts_with_config(RpcGetVoteAccountsConfig {
-                vote_pubkey: Some(self.node.vote.clone()),
+                vote_pubkey: Some(self.validator.vote.clone()),
                 ..Default::default()
             });
             return match result {
-                Ok(vote) => {
-                    Some(!vote.delinquent.is_empty())
-                }
-                Err(_) => {
-                    None
-                }
+                Ok(vote) => Some(!vote.delinquent.is_empty()),
+                Err(_) => None,
             };
         }
         Some(false)
@@ -84,14 +89,12 @@ impl Client {
                 })
                 .collect();
             current.sort_by(|a, b| b.1.cmp(&a.1));
-            let position_option_value = current.iter().position(|c| c.0 == self.node.identity);
+            let position_option_value = current.iter().position(|c| c.0 == self.validator.identity);
             return match position_option_value {
-                None => {
-                    (0, 0)
-                }
+                None => (0, 0),
                 Some(value) => {
-                    let my_credits = current.get(value as usize).unwrap();
-                    (value as usize + 1, my_credits.1)
+                    let my_credits = current.get(value).unwrap();
+                    (value + 1, my_credits.1)
                 }
             };
         }
@@ -126,8 +129,9 @@ impl Client {
                 .current
                 .iter()
                 .map(|vote_account| {
-                    (vote_account.activated_stake,
-                     skip_rate.get(&vote_account.node_pubkey).cloned()
+                    (
+                        vote_account.activated_stake,
+                        skip_rate.get(&vote_account.node_pubkey).cloned(),
                     )
                 })
                 .collect();
@@ -138,7 +142,7 @@ impl Client {
                 .map(|vote_account| {
                     (
                         vote_account.activated_stake,
-                        skip_rate.get(&vote_account.node_pubkey).cloned()
+                        skip_rate.get(&vote_account.node_pubkey).cloned(),
                     )
                 })
                 .collect();
@@ -184,21 +188,19 @@ impl Client {
     pub fn get_block_production(&self) -> (usize, usize) {
         if let Some(client) = &self.client {
             let block = client.get_block_production_with_config(RpcBlockProductionConfig {
-                identity: Some(self.node.identity.to_string()),
+                identity: Some(self.validator.identity.to_string()),
                 ..Default::default()
             });
             return match block {
                 Ok(bl) => {
-                    let val = bl.value.by_identity.get(self.node.identity.as_str());
+                    let val = bl.value.by_identity.get(self.validator.identity.as_str());
                     if let Some(v) = val {
                         (v.0, v.1)
                     } else {
                         (0, 0)
                     }
                 }
-                Err(_) => {
-                    (0, 0)
-                }
+                Err(_) => (0, 0),
             };
         }
         (0, 0)
@@ -211,17 +213,19 @@ impl Client {
 
     pub fn get_slot_count(&self) -> usize {
         if let Some(client) = &self.client {
-            let leader = client.get_leader_schedule_with_config(None, RpcLeaderScheduleConfig {
-                identity: Some(self.node.identity.to_string()),
-                ..Default::default()
-            });
+            let leader = client.get_leader_schedule_with_config(
+                None,
+                RpcLeaderScheduleConfig {
+                    identity: Some(self.validator.identity.to_string()),
+                    ..Default::default()
+                },
+            );
             let result = match leader.unwrap() {
-                None => { 0 }
+                None => 0,
                 Some(slots) => {
-                    if let Some(slots_vec) = slots.get(self.node.identity.as_str()) {
+                    if let Some(slots_vec) = slots.get(self.validator.identity.as_str()) {
                         slots_vec.len()
-                    }
-                    else {
+                    } else {
                         0
                     }
                 }
@@ -238,23 +242,32 @@ impl Client {
                 Ok(value) => {
                     let epoch_num = value.epoch.to_string();
                     let remaining_slots = value.slots_in_epoch - value.slot_index;
-                    let average_time_in_ms = client.get_recent_performance_samples(Some(60)).ok()
+                    let average_time_in_ms = client
+                        .get_recent_performance_samples(Some(60))
+                        .ok()
                         .and_then(|samples| {
-                            let (slots, secs) = samples.iter().fold((0, 0), |(slots, secs), sample| {
-                                (slots + sample.num_slots, secs + sample.sample_period_secs)
-                            });
+                            let (slots, secs) =
+                                samples.iter().fold((0, 0), |(slots, secs), sample| {
+                                    (slots + sample.num_slots, secs + sample.sample_period_secs)
+                                });
                             (secs as u64).saturating_mul(1000).checked_div(slots)
                         });
-                    (epoch_num, humantime::format_duration(Duration::from_secs(remaining_slots * average_time_in_ms.unwrap()) / 1000).to_string(), remaining_slots as f32 / value.slots_in_epoch as f32)
+                    (
+                        epoch_num,
+                        humantime::format_duration(
+                            Duration::from_secs(remaining_slots * average_time_in_ms.unwrap())
+                                / 1000,
+                        )
+                        .to_string(),
+                        remaining_slots as f32 / value.slots_in_epoch as f32,
+                    )
                 }
-                Err(_) => {
-                    (String::from(""), String::from(""), 0.)
-                }
+                Err(_) => (String::from(""), String::from(""), 0.),
             };
         }
         (String::from(""), String::from(""), 0.)
     }
-/*
+    /*
     pub fn get_stakes(&self) -> f64 {
         use crate::stake::build_stake_state;
 
@@ -342,4 +355,3 @@ fn get_contact_info(rpc_client: &RpcClient, identity: &Pubkey) -> Option<RpcCont
         .into_iter()
         .find(|node| node.pubkey == identity.to_string())
 }
-
