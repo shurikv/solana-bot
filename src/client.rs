@@ -44,8 +44,11 @@ impl Client {
         match pubkey {
             Ok(key) => {
                 if let Some(client) = &self.client {
-                    let balance = client.get_balance(&key).unwrap();
-                    return lamports_to_sol(balance);
+                    let balance = client.get_balance(&key);
+                    match balance {
+                        Ok(value) => { return lamports_to_sol(value);}
+                        Err(err) => {tracing::error!("{:?}", err.kind);}
+                    }
                 }
                 -1.
             }
@@ -69,7 +72,10 @@ impl Client {
             });
             return match result {
                 Ok(vote) => Some(!vote.delinquent.is_empty()),
-                Err(_) => None,
+                Err(err) => {
+                    tracing::error!("{:?}", err.kind);
+                    None
+                },
             };
         }
         Some(false)
@@ -200,7 +206,10 @@ impl Client {
                         (0, 0)
                     }
                 }
-                Err(_) => (0, 0),
+                Err(err) => {
+                    tracing::error!("{:?}", err.get_transaction_error());
+                    (0, 0)
+                },
             };
         }
         (0, 0)

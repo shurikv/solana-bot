@@ -4,12 +4,16 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::thread::sleep;
 use ureq::{Error, Response};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::Layer;
 
 use crate::client::Client;
 use crate::settings::{NodeCheckSettings, Settings};
 
 mod client;
 mod settings;
+mod logger;
 
 fn read_setting_from_file() -> Settings {
     let mut path_buf = std::env::current_dir().unwrap();
@@ -21,70 +25,70 @@ fn read_setting_from_file() -> Settings {
 }
 
 fn main() {
+    logger::setup_logger();
     let settings: Settings = read_setting_from_file();
-    println!(
-        "period: {}",
-        settings.timeouts.balance_check_period.as_secs()
-    );
     let nodes_check_list: Arc<RwLock<Vec<NodeCheckSettings>>> =
         Arc::new(RwLock::new(settings.nodes));
-    println!("{:?}", nodes_check_list);
-    // return;
-    let deliquency_period = settings.timeouts.deliquency_check_period;
+    let delinquency_period = settings.timeouts.deliquency_check_period;
     let balance_period = settings.timeouts.balance_check_period;
     let delinq_list = nodes_check_list.clone();
     let telegram_settings = settings.telegram.clone();
-    let deliquency_thread = thread::spawn(move || loop {
-        println!("start loop in thread");
-        for validator in delinq_list.read().unwrap().iter() {
-            println!("check validator: {}", validator.validator.name);
-            let client = Client::new(&validator.validator);
-            match client.is_delinquent() {
-                None => {
-                    println!("Validator {} is healthy", client.validator.name);
-                }
-                Some(value) => {
-                    if value {
-                        send_message(
-                            format!(
-                                "<b>{}</b>\npubkey -> {}\n<b>DELINQUENT!!!</b>!!!",
-                                client.validator.name.as_str(),
-                                &client.validator.identity[..16]
-                            ),
-                            telegram_settings.token.as_str(),
-                            telegram_settings.alert_chat_id,
-                        )
-                        .expect("Send alert message error");
-                    } else {
-                        println!("Validator {} is healthy", client.validator.name);
+    let delinquency_thread = thread::spawn(move || {
+        tracing::info!("Start delinquency thread");
+        loop {
+            for validator in delinq_list.read().unwrap().iter() {
+                tracing::trace!("Check delinquent for {}", validator.validator.name);
+                let client = Client::new(&validator.validator);
+                match client.is_delinquent() {
+                    None => {
+                        tracing::trace!("Validator {} is healthy", client.validator.name);
+                    }
+                    Some(value) => {
+                        if value {
+                            send_message(
+                                format!(
+                                    "<b>{}</b>\npubkey -> {}\n<b>DELINQUENT!!!</b>!!!",
+                                    client.validator.name.as_str(),
+                                    &client.validator.identity[..16]
+                                ),
+                                telegram_settings.token.as_str(),
+                                telegram_settings.alert_chat_id,
+                            )
+                                .expect("Send alert message error");
+                            tracing::error!("Validator {} is delinquent", client.validator.name);
+                        } else {
+                            tracing::trace!("Validator {} is healthy", client.validator.name);
+                        }
                     }
                 }
             }
+            tracing::trace!("Sleep delinquency thread on {:?}", delinquency_period);
+            sleep(delinquency_period);
         }
-        println!("sleep on {:?}", deliquency_period);
-        sleep(deliquency_period);
     });
     let balance_check_thread = thread::spawn(move || {
+        tracing::info!("Start balance check thread");
         let mut nodes_map: HashMap<String, (f64, f64)> = HashMap::new();
         loop {
             for validator in nodes_check_list.read().unwrap().iter() {
+                tracing::trace!("Check balance for {}", validator.validator.name);
                 let client = Client::new(&validator.validator);
                 let identity_balance = client.get_identity_balance();
                 let vote_balance = client.get_vote_balance();
                 if nodes_map.contains_key(&client.validator.name) {
                     let prev_value = nodes_map.get(&client.validator.name).unwrap();
-                    if prev_value.0 + 0.1 < identity_balance {
+                    if prev_value.0 + 0.1 < identity_balance && identity_balance >= 0. {
                         send_message(format!("<b>{}</b>\npubkey -> {}\n<b>Identity balance increased!!! {}:{}:{}</b>!!!", client.validator.name.as_str(), &client.validator.identity[..16], prev_value.0, identity_balance, identity_balance - prev_value.0), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
-                        println!(
+                        tracing::info!(
                             "identity: {};{};{}",
                             prev_value.0,
                             identity_balance,
                             identity_balance - prev_value.0
                         );
                     }
-                    if prev_value.1 + 0.1 < vote_balance {
+                    if prev_value.1 + 0.1 < vote_balance && vote_balance >= 0. {
                         send_message(format!("<b>{}</b>\npubkey -> {}\n<b>Vote balance increased!!! {}:{}:{}</b>!!!", client.validator.name.as_str(), &client.validator.identity[..16], prev_value.1, vote_balance, vote_balance - prev_value.1), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
-                        println!(
+                        tracing::info!(
                             "vote: {};{};{}",
                             prev_value.1,
                             vote_balance,
@@ -92,14 +96,16 @@ fn main() {
                         );
                     }
                 }
-                nodes_map.insert(client.validator.name, (identity_balance, vote_balance));
+                if identity_balance >= 0. && vote_balance >= 0. {
+                    nodes_map.insert(client.validator.name, (identity_balance, vote_balance));
+                }
             }
-            println!("sleep balance thread on {:?}", balance_period);
+            tracing::trace!("Sleep balance thread on {:?}", balance_period);
             sleep(balance_period);
         }
     });
     balance_check_thread.join().expect("");
-    deliquency_thread.join().expect("");
+    delinquency_thread.join().expect("");
     return;
     /*
         for node in settings.nodes {
