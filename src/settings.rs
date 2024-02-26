@@ -1,10 +1,12 @@
-use serde::{Serialize,Deserialize};
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub telegram: Telegram,
-    pub nodes: Vec<Node>,
+    pub timeouts: Timeouts,
+    pub nodes: Vec<NodeCheckSettings>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -15,13 +17,52 @@ pub struct Telegram {
     pub alert_chat_id: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Timeouts {
+    #[serde(with = "humantime_serde")]
+    pub deliquency_check_period: Duration,
+    #[serde(with = "humantime_serde")]
+    pub balance_check_period: Duration,
+}
+
+impl Default for Timeouts {
+    fn default() -> Self {
+        Timeouts {
+            deliquency_check_period: Duration::from_secs(10),
+            balance_check_period: Duration::from_secs(5),
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Node {
+pub struct NodeCheckSettings {
+    pub validator: Validator,
+    pub min_balance_amount: f64,
+    pub critical_excess_of_skip_rate: f64,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Validator {
     pub name: String,
-    pub min_alert_amount: f64,
     pub identity: String,
     pub vote: String,
     pub rpc: String,
-    pub critical_excess_of_skip_rate: f64,
+}
+
+impl Validator {
+    pub fn new(name: String, identity: String, vote: String, rpc: String) -> Self {
+        Validator {
+            name,
+            identity,
+            vote,
+            rpc,
+        }
+    }
+}
+
+pub struct DeliquencyChecker {
+    pub validator: Validator,
 }
