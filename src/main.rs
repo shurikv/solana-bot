@@ -27,7 +27,8 @@ impl From<serde_json::Error> for SolanaBotError {
 }
 
 fn read_setting_from_file() -> Result<Settings, SolanaBotError> {
-    let mut path_buf = std::env::current_dir().unwrap();
+    let mut path_buf = std::env::current_exe().unwrap();
+    path_buf.pop();
     path_buf.push("settings.json");
     let json_from_file = std::fs::read_to_string(&path_buf)
         .expect(format!("File not found: {:?}", path_buf.to_str()).as_str());
