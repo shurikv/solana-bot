@@ -25,14 +25,10 @@ impl Client {
         }
     }
 
-    pub fn initialize(&mut self) {
-        self.client = Some(RpcClient::new(&self.validator.rpc));
-    }
-
     pub fn get_version(&self) -> String {
         if let Some(client) = &self.client {
             let pubkey = Pubkey::from_str(&self.validator.identity);
-            if let Some(info) = get_contact_info(&client, &pubkey.unwrap()) {
+            if let Some(info) = get_contact_info(client, &pubkey.unwrap()) {
                 return info.version.unwrap_or_else(|| "?".to_string());
             }
         }
@@ -46,8 +42,12 @@ impl Client {
                 if let Some(client) = &self.client {
                     let balance = client.get_balance(&key);
                     match balance {
-                        Ok(value) => { return lamports_to_sol(value);}
-                        Err(err) => {tracing::error!("{:?}", err.kind);}
+                        Ok(value) => {
+                            return lamports_to_sol(value);
+                        }
+                        Err(err) => {
+                            tracing::error!("{:?}", err.kind);
+                        }
                     }
                 }
                 -1.
@@ -75,7 +75,7 @@ impl Client {
                 Err(err) => {
                     tracing::error!("{:?}", err.kind);
                     None
-                },
+                }
             };
         }
         Some(false)
@@ -209,7 +209,7 @@ impl Client {
                 Err(err) => {
                     tracing::error!("{:?}", err.get_transaction_error());
                     (0, 0)
-                },
+                }
             };
         }
         (0, 0)

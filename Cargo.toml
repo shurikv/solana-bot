@@ -20,3 +20,4 @@ humantime-serde = "1.1.1"
 tracing = { version = "0.1.40", features = [] }
 tracing-subscriber = { version = "0.3.18" , features =  ["env-filter", "json"] }
 tracing-log = "0.2.0"
+chrono = "0.4.34"
