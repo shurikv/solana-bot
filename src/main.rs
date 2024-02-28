@@ -107,7 +107,7 @@ fn main() {
                                 identity_balance - prev_value.0
                             );
                         }
-                        if (prev_value.1 - vote_balance).abs() > 0.05 && vote_balance >= 0. {
+                        if (prev_value.1 - vote_balance).abs() > 0. && vote_balance >= 0. {
                             send_message(format!("<b>{}</b>\npubkey -> {}\n<b>Vote balance increased!!! {}:{}:{}</b>!!!", client.validator.name.as_str(), &client.validator.identity[..16], prev_value.1, vote_balance, vote_balance - prev_value.1), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
                             tracing::info!(
                                 "vote: {};{};{}",
