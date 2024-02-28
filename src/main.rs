@@ -126,11 +126,16 @@ fn main() {
             }
         });
 
-        adjust_time();
-
         let node_stats_check_thread = thread::spawn(move || {
             tracing::info!("Start node stats check thread");
+            let mut prev_hour = chrono::Utc::now().hour();
             loop {
+                let now = chrono::Utc::now();
+                if now.hour() == prev_hour {
+                    sleep(Duration::from_secs(60));
+                    continue;
+                }
+                prev_hour = now.hour();
                 for node in nodes_check_list.read().unwrap().iter() {
                     let client = Client::new(&node.validator);
                     let skip_rate = client.get_skip_rate();
@@ -254,18 +259,6 @@ fn main() {
         node_stats_check_thread.join().expect("");
         delinquency_thread.join().expect("");
         balance_check_thread.join().expect("");
-    }
-}
-
-fn adjust_time() {
-    loop {
-        let now = chrono::Utc::now();
-        if now.minute() == 0 {
-            tracing::info!("Time adjusted");
-            break;
-        } else {
-            sleep(Duration::from_secs(1));
-        }
     }
 }
 
