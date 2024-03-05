@@ -132,7 +132,7 @@ fn main() {
             loop {
                 let now = chrono::Utc::now();
                 if now.hour() == prev_hour {
-                    sleep(Duration::from_secs(60));
+                    sleep(Duration::from_secs(10));
                     continue;
                 }
                 prev_hour = now.hour();
