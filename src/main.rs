@@ -1,6 +1,7 @@
-use chrono::Timelike;
+use chrono::{TimeDelta, Timelike};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
+use std::ops::Sub;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::thread::sleep;
@@ -128,14 +129,13 @@ fn main() {
 
         let node_stats_check_thread = thread::spawn(move || {
             tracing::info!("Start node stats check thread");
-            let mut prev_hour = chrono::Utc::now().hour();
             loop {
                 let now = chrono::Utc::now();
-                if now.hour() == prev_hour {
-                    sleep(Duration::from_secs(10));
+                tracing::info!("now: {}", now);
+                if now.minute() != 0 {
+                    sleep(Duration::from_secs(60));
                     continue;
                 }
-                prev_hour = now.hour();
                 for node in nodes_check_list.read().unwrap().iter() {
                     let client = Client::new(&node.validator);
                     let skip_rate = client.get_skip_rate();
