@@ -100,7 +100,7 @@ fn main() {
                         let prev_value = nodes_map.get(&client.validator.name).unwrap();
                         if (prev_value.0 - identity_balance).abs() > 0.05 && identity_balance >= 0.
                         {
-                            send_message(format!("<b>{}</b>\npubkey -> {}\n<b>Identity balance increased!!! {}:{}:{}</b>!!!", client.validator.name.as_str(), &client.validator.identity[..16], prev_value.0, identity_balance, identity_balance - prev_value.0), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
+                            send_message(format!("<b>{}</b>\npubkey -> {}\n<b>Identity balance changed!!! {}:{}:{}</b>!!!", client.validator.name.as_str(), &client.validator.identity[..16], prev_value.0, identity_balance, identity_balance - prev_value.0), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
                             tracing::info!(
                                 "identity: {};{};{}",
                                 prev_value.0,
@@ -109,7 +109,7 @@ fn main() {
                             );
                         }
                         if (prev_value.1 - vote_balance).abs() > 0. && vote_balance >= 0. {
-                            send_message(format!("<b>{}</b>\npubkey -> {}\n<b>Vote balance increased!!! {}:{}:{}</b>!!!", client.validator.name.as_str(), &client.validator.identity[..16], prev_value.1, vote_balance, vote_balance - prev_value.1), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
+                            send_message(format!("<b>{}</b>\npubkey -> {}\n<b>Vote balance changed!!! {}:{}:{}</b>!!!", client.validator.name.as_str(), &client.validator.identity[..16], prev_value.1, vote_balance, vote_balance - prev_value.1), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
                             tracing::info!(
                                 "vote: {};{};{}",
                                 prev_value.1,
@@ -131,9 +131,8 @@ fn main() {
             tracing::info!("Start node stats check thread");
             loop {
                 let now = chrono::Utc::now();
-                tracing::info!("now: {}", now);
                 if now.minute() != 0 {
-                    sleep(Duration::from_secs(60));
+                    sleep(Duration::from_secs(30));
                     continue;
                 }
                 for node in nodes_check_list.read().unwrap().iter() {
@@ -165,11 +164,27 @@ fn main() {
                         )
                         .expect("Send alert message error");
                     } else {
-                        msg = format!(
-                            "<b>{} [{}]</b> 🟢",
-                            client.validator.name,
-                            client.get_version()
-                        );
+                        if let Some(delinquent) = client.is_delinquent() {
+                            if delinquent {
+                                msg = format!(
+                                    "<b>{} [{}]</b> 🔴",
+                                    client.validator.name,
+                                    client.get_version()
+                                );
+                            } else {
+                                msg = format!(
+                                    "<b>{} [{}]</b> 🟢",
+                                    client.validator.name,
+                                    client.get_version()
+                                );
+                            }
+                        } else {
+                            msg = format!(
+                                "<b>{} [{}]</b> 🟢",
+                                client.validator.name,
+                                client.get_version()
+                            );
+                        }
                     }
                     msg.push_str("\n\n");
                     msg.push_str("<code>");
@@ -222,7 +237,14 @@ fn main() {
                         format!("epoch:{:^4}|{:^25}\n", epoch_info.0, epoch_info.1).as_str(),
                     );
                     msg.push_str(format!("{:-<35}\n", "").as_str());
+
+                    let activated_stake = client.activated_stake().unwrap_or_default();
+                    msg.push_str(format!("Active stake |{:^22.2}", activated_stake).as_str());
+                    msg.push_str(format!("{:-<35}\n", "").as_str());
+
                     msg.push_str("</code>");
+
+
                     let result = send_message(
                         msg,
                         telegram_settings2.token.as_str(),

@@ -81,6 +81,29 @@ impl Client {
         Some(false)
     }
 
+    pub fn activated_stake(&self) -> Option<f64> {
+        if let Some(client) = &self.client {
+            let result = client.get_vote_accounts_with_config(RpcGetVoteAccountsConfig {
+                vote_pubkey: Some(self.validator.vote.clone()),
+                ..Default::default()
+            });
+            return match result {
+                Ok(vote) => {
+                    if vote.current.is_empty() {
+                        Some(lamports_to_sol(vote.delinquent.first().unwrap().activated_stake))
+                    } else {
+                        Some(lamports_to_sol(vote.current.first().unwrap().activated_stake))
+                    }
+                },
+                Err(err) => {
+                    tracing::error!("{:?}", err.kind);
+                    None
+                }
+            };
+        }
+        Some(0.)
+    }
+
     pub fn get_credits_and_place(&self) -> (usize, u64) {
         if let Some(client) = &self.client {
             let result = client.get_vote_accounts();
