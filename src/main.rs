@@ -100,18 +100,18 @@ fn main() {
                         let prev_value = nodes_map.get(&client.validator.name).unwrap();
                         if (prev_value.0 - identity_balance).abs() > 0.05 && identity_balance >= 0.
                         {
-                            send_message(format!("<b>{}</b>\npubkey -> {}\n<b>Identity balance changed!!! {}:{}:{}</b>!!!", client.validator.name.as_str(), &client.validator.identity[..16], prev_value.0, identity_balance, identity_balance - prev_value.0), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
+                            send_message(format!("<b>{}</b>\npubkey -> {}\n<b>Identity balance changed!!! {:.3};{:.3};{:.3}</b>!!!", client.validator.name.as_str(), &client.validator.identity[..16], prev_value.0, identity_balance, identity_balance - prev_value.0), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
                             tracing::info!(
-                                "identity: {};{};{}",
+                                "identity: {:.3};{:.3};{:.3}",
                                 prev_value.0,
                                 identity_balance,
                                 identity_balance - prev_value.0
                             );
                         }
                         if (prev_value.1 - vote_balance).abs() > 0. && vote_balance >= 0. {
-                            send_message(format!("<b>{}</b>\npubkey -> {}\n<b>Vote balance changed!!! {}:{}:{}</b>!!!", client.validator.name.as_str(), &client.validator.identity[..16], prev_value.1, vote_balance, vote_balance - prev_value.1), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
+                            send_message(format!("<b>{}</b>\npubkey -> {}\n<b>Vote balance changed!!! {:.3};{:.3};{:.3}</b>!!!", client.validator.name.as_str(), &client.validator.identity[..16], prev_value.1, vote_balance, vote_balance - prev_value.1), settings.telegram.token.as_str(), settings.telegram.alert_chat_id).expect("Send alert message error");
                             tracing::info!(
-                                "vote: {};{};{}",
+                                "vote: {:.3};{:.3};{:.3}",
                                 prev_value.1,
                                 vote_balance,
                                 vote_balance - prev_value.1
@@ -129,12 +129,14 @@ fn main() {
 
         let node_stats_check_thread = thread::spawn(move || {
             tracing::info!("Start node stats check thread");
+            let mut prev_hour = chrono::Utc::now().hour();
             loop {
                 let now = chrono::Utc::now();
-                if now.minute() != 0 {
+                if now.hour() == prev_hour {
                     sleep(Duration::from_secs(30));
                     continue;
                 }
+                prev_hour = now.hour();
                 for node in nodes_check_list.read().unwrap().iter() {
                     let client = Client::new(&node.validator);
                     let skip_rate = client.get_skip_rate();
