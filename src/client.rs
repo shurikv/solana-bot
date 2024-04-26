@@ -90,11 +90,15 @@ impl Client {
             return match result {
                 Ok(vote) => {
                     if vote.current.is_empty() {
-                        Some(lamports_to_sol(vote.delinquent.first().unwrap().activated_stake))
+                        Some(lamports_to_sol(
+                            vote.delinquent.first().unwrap().activated_stake,
+                        ))
                     } else {
-                        Some(lamports_to_sol(vote.current.first().unwrap().activated_stake))
+                        Some(lamports_to_sol(
+                            vote.current.first().unwrap().activated_stake,
+                        ))
                     }
-                },
+                }
                 Err(err) => {
                     tracing::error!("{:?}", err.kind);
                     None
@@ -178,7 +182,7 @@ impl Client {
 
             let validators: Vec<_> = current_validators
                 .into_iter()
-                .chain(delinquent_validators.into_iter())
+                .chain(delinquent_validators)
                 .collect();
 
             let total_active_stake: u64 = vote_accounts

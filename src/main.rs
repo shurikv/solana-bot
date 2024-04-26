@@ -1,11 +1,9 @@
-use chrono::{TimeDelta, Timelike};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
-use std::ops::Sub;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::thread::sleep;
-use std::time::{Duration};
+use std::time::{Duration, SystemTime};
 use ureq::{Error, Response};
 
 use crate::client::Client;
@@ -17,6 +15,7 @@ mod deliquency_check;
 mod logger;
 mod settings;
 
+#[derive(Debug)]
 pub enum SolanaBotError {
     ParseSettingsError(serde_json::Error),
 }
@@ -32,7 +31,7 @@ fn read_setting_from_file() -> Result<Settings, SolanaBotError> {
     path_buf.pop();
     path_buf.push("settings.json");
     let json_from_file = std::fs::read_to_string(&path_buf)
-        .expect(format!("File not found: {:?}", path_buf.to_str()).as_str());
+        .unwrap_or_else(|_| panic!("File not found: {:?}", path_buf.to_str()));
     return match serde_json::from_str(json_from_file.as_str()) {
         Ok(value) => Ok(value),
         Err(e) => Err(ParseSettingsError(e)),
@@ -129,14 +128,20 @@ fn main() {
 
         let node_stats_check_thread = thread::spawn(move || {
             tracing::info!("Start node stats check thread");
-            let mut prev_hour = chrono::Utc::now().hour();
             loop {
-                let now = chrono::Utc::now();
-                if now.hour() == prev_hour {
-                    sleep(Duration::from_secs(30));
-                    continue;
-                }
-                prev_hour = now.hour();
+                let now = SystemTime::now();
+                let unix_timestamp = now
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .expect("Time went backwards")
+                    .as_secs();
+
+                let current_minutes = (unix_timestamp / 60) % 60;
+                let current_seconds = unix_timestamp % 60;
+                let seconds_to_next_hour = 3600 - (current_minutes * 60 + current_seconds);
+
+                tracing::info!("Sleep node stats thread on {}s", seconds_to_next_hour);
+                sleep(Duration::from_secs(seconds_to_next_hour));
+
                 for node in nodes_check_list.read().unwrap().iter() {
                     let client = Client::new(&node.validator);
                     let skip_rate = client.get_skip_rate();
@@ -165,21 +170,13 @@ fn main() {
                             telegram_settings2.alert_chat_id,
                         )
                         .expect("Send alert message error");
-                    } else {
-                        if let Some(delinquent) = client.is_delinquent() {
-                            if delinquent {
-                                msg = format!(
-                                    "<b>{} [{}]</b> 🔴",
-                                    client.validator.name,
-                                    client.get_version()
-                                );
-                            } else {
-                                msg = format!(
-                                    "<b>{} [{}]</b> 🟢",
-                                    client.validator.name,
-                                    client.get_version()
-                                );
-                            }
+                    } else if let Some(delinquent) = client.is_delinquent() {
+                        if delinquent {
+                            msg = format!(
+                                "<b>{} [{}]</b> 🔴",
+                                client.validator.name,
+                                client.get_version()
+                            );
                         } else {
                             msg = format!(
                                 "<b>{} [{}]</b> 🟢",
@@ -187,6 +184,12 @@ fn main() {
                                 client.get_version()
                             );
                         }
+                    } else {
+                        msg = format!(
+                            "<b>{} [{}]</b> 🟢",
+                            client.validator.name,
+                            client.get_version()
+                        );
                     }
                     msg.push_str("\n\n");
                     msg.push_str("<code>");
@@ -245,7 +248,6 @@ fn main() {
                     msg.push_str(format!("{:-<35}\n", "").as_str());
 
                     msg.push_str("</code>");
-
 
                     let result = send_message(
                         msg,
