@@ -4,6 +4,7 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
+use chrono::Timelike;
 use ureq::{Error, Response};
 
 use crate::client::Client;
@@ -129,14 +130,8 @@ fn main() {
         let node_stats_check_thread = thread::spawn(move || {
             tracing::info!("Start node stats check thread");
             loop {
-                let now = SystemTime::now();
-                let unix_timestamp = now
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .expect("Time went backwards")
-                    .as_secs();
-
-                let current_minutes = (unix_timestamp / 60) % 60;
-                let current_seconds = unix_timestamp % 60;
+                let current_minutes = chrono::Utc::now().minute() as u64;
+                let current_seconds = chrono::Utc::now().second() as u64;
                 let seconds_to_next_hour = 3600 - (current_minutes * 60 + current_seconds);
 
                 tracing::info!("Sleep node stats thread on {}s", seconds_to_next_hour);
