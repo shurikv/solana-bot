@@ -35,14 +35,19 @@ fn read_setting_from_file() -> Result<Settings, SolanaBotError> {
 
 fn main() {
     logger::setup_logger();
-    if let Ok(settings) = read_setting_from_file() {
-        let delinquency_thread = deliquency_check::run(&settings);
-        let balance_check_thread = balance_check::run(&settings);
-        let node_stats_check_thread = node_stats::run(&settings);
+    match read_setting_from_file() {
+        Ok(settings) => {
+            let delinquency_thread = deliquency_check::run(&settings);
+            let balance_check_thread = balance_check::run(&settings);
+            let node_stats_check_thread = node_stats::run(&settings);
 
-        node_stats_check_thread.join().expect("");
-        delinquency_thread.join().expect("");
-        balance_check_thread.join().expect("");
+            node_stats_check_thread.join().expect("");
+            delinquency_thread.join().expect("");
+            balance_check_thread.join().expect("");
+        }
+        Err(e) => {
+            tracing::error!("Failed to parse settings: {:?}", e);
+        }
     }
 }
 
