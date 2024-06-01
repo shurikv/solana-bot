@@ -7,6 +7,7 @@ pub struct Settings {
     pub telegram: Telegram,
     pub timeouts: Timeouts,
     pub nodes: Vec<NodeCheckSettings>,
+    pub balances: Vec<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -50,19 +51,4 @@ pub struct Validator {
     pub identity: String,
     pub vote: String,
     pub rpc: String,
-}
-
-impl Validator {
-    pub fn new(name: String, identity: String, vote: String, rpc: String) -> Self {
-        Validator {
-            name,
-            identity,
-            vote,
-            rpc,
-        }
-    }
-}
-
-pub struct DeliquencyChecker {
-    pub validator: Validator,
 }
